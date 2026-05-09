@@ -11,6 +11,10 @@ public:
 	bool iswhite (){
 		return white;
 	}
+	virtual bool isSlider() {
+		return false;
+	}
+	virtual bool isValidMove(int sr, int sc, int dr, int dc) = 0;
 	virtual char getsymbol() = 0;
 	~Peice() {};
 };
