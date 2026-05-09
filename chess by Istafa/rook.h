@@ -10,6 +10,15 @@ public:
 
 		return 'r';
 	}
+
+	bool isValidMove(int sr, int sc, int dr, int dc){
+		if(sr == dr || sc == dc) return true;
+		return false;
+	}
+
+	bool isSlider() {
+    	return true;
+	}
 };
 
 #endif rook.h
