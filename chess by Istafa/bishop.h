@@ -1,5 +1,6 @@
 #ifndef bishop_h
 #define bishop_h
+#include<cmath>
 #include "peice.h"
 
 class Bishop :public Peice {
@@ -9,6 +10,15 @@ public:
 		if (white) return 'B';
 
 		return 'b';
+	}
+
+	bool isValidMove(int sr, int sc, int dr, int dc) {
+    	if (abs(sr - dr) == abs(sc - dc)) return true;
+	    return false;
+	}
+
+	bool isSlider() {
+    	return true;
 	}
 };
 
