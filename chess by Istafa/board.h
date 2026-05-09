@@ -18,7 +18,7 @@ public:
 
 	void display();
 
-
+	bool movePiece(int sr, int sc, int dr, int dc);
 };
 
 
