@@ -59,3 +59,35 @@ void Board::display() {
 
     cout << endl;
 }
+
+bool Board::movePiece(int sr, int sc, int dr, int dc){
+    if(sr<0 || sr>7 || sc<0 || sc>7 || dr<0 || dr>7 || dc<0 || dc>7) return false;
+
+    if (BOARD[sr][sc] == NULL) return false;
+
+    if(!(BOARD[sr][sc]->isValidMove(sr, sc, dr, dc))) return false;
+
+    if (BOARD[sr][sc]->isSlider()) {
+        int rowDir = 0, colDir = 0;
+
+        if (dr > sr) rowDir = 1;
+        else if (dr < sr) rowDir = -1;
+        if (dc > sc) colDir = 1;
+        else if (dc < sc) colDir = -1;
+
+        int r = sr + rowDir;
+        int c = sc + colDir;
+        while (r != dr || c != dc) {
+            if (BOARD[r][c] != NULL) return false;
+            r += rowDir;
+            c += colDir;
+        }
+    }
+
+    if (BOARD[dr][dc] != NULL && BOARD[dr][dc]->iswhite() == BOARD[sr][sc]->iswhite()) return false;
+
+    delete BOARD[dr][dc];
+    BOARD[dr][dc] = BOARD[sr][sc];
+    BOARD[sr][sc] = NULL;
+    return true;
+}   
