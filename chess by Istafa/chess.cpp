@@ -18,6 +18,8 @@ int main() {
         bool moved = chessboard.movePiece(sr, sc, dr, dc);
         if (moved) {
             whiteTurn = !whiteTurn;
+        } else {
+            cout << "  Invalid move! Try again." << endl;
         }
     }
 
