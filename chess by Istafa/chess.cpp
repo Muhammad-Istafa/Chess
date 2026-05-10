@@ -17,6 +17,11 @@ int main() {
 
         bool moved = chessboard.movePiece(sr, sc, dr, dc);
         if (moved) {
+            if (chessboard.kingCaptured) {
+                chessboard.display();
+                cout << (whiteTurn ? "WHITE wins!" : "BLACK wins!") << endl;
+                break;
+            }
             whiteTurn = !whiteTurn;
         } else {
             cout << "  Invalid move! Try again." << endl;
