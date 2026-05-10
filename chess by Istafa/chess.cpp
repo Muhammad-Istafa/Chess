@@ -8,10 +8,18 @@ int main() {
     int sr, sc, dr, dc;
 
     cout << "  === CHESS GAME ===" << endl;
-    chessboard.display();
-    cout << (whiteTurn ? "WHITE's turn" : "BLACK's turn") << endl;
-    cout << "Enter move (sr sc dr dc): ";
-    cin >> sr >> sc >> dr >> dc;
+
+    while (true) {
+        chessboard.display();
+        cout << (whiteTurn ? "WHITE's turn" : "BLACK's turn") << endl;
+        cout << "Enter move (sr sc dr dc): ";
+        cin >> sr >> sc >> dr >> dc;
+
+        bool moved = chessboard.movePiece(sr, sc, dr, dc);
+        if (moved) {
+            whiteTurn = !whiteTurn;
+        }
+    }
 
     return 0;
 }
