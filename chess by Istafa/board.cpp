@@ -53,6 +53,17 @@ bool Board::movePiece(int sr, int sc, int dr, int dc) {
     if (sr<0 || sr>7 || sc<0 || sc>7 || dr<0 || dr>7 || dc<0 || dc>7) return false;
     if (BOARD[sr][sc] == NULL) return false;
     if (!(BOARD[sr][sc]->isValidMove(sr, sc, dr, dc))) return false;
+
+    char sym = BOARD[sr][sc]->getsymbol();
+    if (sym == 'P' || sym == 'p') {
+        if (abs(dc - sc) == 1) {
+            if (BOARD[dr][dc] == NULL) return false;
+        }
+        if (dc == sc) {
+            if (BOARD[dr][dc] != NULL) return false;
+        }
+    }
+
     if (BOARD[sr][sc]->isSlider()) {
         int rowDir = 0, colDir = 0;
         if (dr > sr) rowDir = 1;
@@ -67,6 +78,16 @@ bool Board::movePiece(int sr, int sc, int dr, int dc) {
             c += colDir;
         }
     }
+    if (BOARD[dr][dc] != NULL && BOARD[dr][dc]->iswhite() == BOARD[sr][sc]->iswhite()) return false;
+
+    if (BOARD[dr][dc] != NULL && BOARD[dr][dc]->getsymbol() == 'K') kingCaptured = true;
+    if (BOARD[dr][dc] != NULL && BOARD[dr][dc]->getsymbol() == 'k') kingCaptured = true;
+
+    delete BOARD[dr][dc];
+    BOARD[dr][dc] = BOARD[sr][sc];
+    BOARD[sr][sc] = NULL;
+    return true;
+}
     if (BOARD[dr][dc] != NULL && BOARD[dr][dc]->iswhite() == BOARD[sr][sc]->iswhite()) return false;
 
     if (BOARD[dr][dc] != NULL && BOARD[dr][dc]->getsymbol() == 'K') kingCaptured = true;
