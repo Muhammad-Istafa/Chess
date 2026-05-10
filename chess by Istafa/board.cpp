@@ -88,13 +88,3 @@ bool Board::movePiece(int sr, int sc, int dr, int dc) {
     BOARD[sr][sc] = NULL;
     return true;
 }
-    if (BOARD[dr][dc] != NULL && BOARD[dr][dc]->iswhite() == BOARD[sr][sc]->iswhite()) return false;
-
-    if (BOARD[dr][dc] != NULL && BOARD[dr][dc]->getsymbol() == 'K') kingCaptured = true;
-    if (BOARD[dr][dc] != NULL && BOARD[dr][dc]->getsymbol() == 'k') kingCaptured = true;
-
-    delete BOARD[dr][dc];
-    BOARD[dr][dc] = BOARD[sr][sc];
-    BOARD[sr][sc] = NULL;
-    return true;
-}
