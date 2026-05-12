@@ -1,5 +1,7 @@
 #include "board.h"
 #include <iostream>
+#include <cstdlib>
+#include <windows.h>
 using namespace std;
 
 int main() {
@@ -10,6 +12,7 @@ int main() {
     cout << "  === CHESS GAME ===" << endl;
 
     while (true) {
+        system("cls");
         chessboard.display();
         cout << (whiteTurn ? "WHITE's turn" : "BLACK's turn") << endl;
         cout << "Enter move (sr sc dr dc): ";
@@ -25,6 +28,7 @@ int main() {
             whiteTurn = !whiteTurn;
         } else {
             cout << "  Invalid move! Try again." << endl;
+            Sleep(1000);
         }
     }
 
