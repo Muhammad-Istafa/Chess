@@ -1,275 +1,228 @@
 #include "board.h"
 #include <windows.h>
+#include <algorithm>
 #include <string>
+using std::max;
+using std::min;
 
-// g++ chess.cpp board.cpp -o chess.exe -mwindows
-
-const int CELL    = 80;
-const int OX      = 40;
-const int OY      = 50;
-const int WIN_W   = OX * 2 + CELL * 8;
-const int WIN_H   = OY + CELL * 8 + 90;
+int gSW = 0, gSH = 0, gCELL = 0, gOX = 0, gOY = 0;
 
 Board*      gBoard        = nullptr;
 bool        whiteTurn     = true;
 bool        pieceSelected = false;
-int         selRow        = -1;
-int         selCol        = -1;
-bool        gameOver      = false;
-std::string winnerMsg     = "";
+int         selRow = -1, selCol = -1;
+bool        gameOver = false, isDraw = false;
+std::string statusMsg = "";
 
-void DrawBoard(HDC hdc) {
-    COLORREF clrLight  = RGB(240, 217, 181);
-    COLORREF clrDark   = RGB(181, 136,  99);
-    COLORREF clrSel    = RGB( 80, 200,  80);
-    COLORREF clrBorder = RGB( 30,  30,  30);
+RECT gDrawBtn = {};
+#define TIMER_ID 1
 
-    HBRUSH borderBrush = CreateSolidBrush(clrBorder);
-    RECT borderRect = { OX - 4, OY - 4, OX + CELL * 8 + 4, OY + CELL * 8 + 4 };
-    FillRect(hdc, &borderRect, borderBrush);
-    DeleteObject(borderBrush);
-
-    for (int r = 0; r < 8; r++) {
-        for (int c = 0; c < 8; c++) {
-            int x = OX + c * CELL;
-            int y = OY + r * CELL;
-
-            COLORREF color;
-            if (pieceSelected && r == selRow && c == selCol)
-                color = clrSel;
-            else
-                color = ((r + c) % 2 == 0) ? clrLight : clrDark;
-
-            HBRUSH br = CreateSolidBrush(color);
-            RECT cell = { x, y, x + CELL, y + CELL };
-            FillRect(hdc, &cell, br);
-            DeleteObject(br);
-        }
-    }
-
-    HFONT labelFont = CreateFont(
-        16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH, "Segoe UI"
-    );
-    HGDIOBJ oldFont = SelectObject(hdc, labelFont);
-    SetBkMode(hdc, TRANSPARENT);
-
-    for (int i = 0; i < 8; i++) {
-        char buf[3];
-        wsprintfA(buf, "%d", i);
-
-        SetTextColor(hdc, RGB(200, 200, 200));
-        TextOutA(hdc, OX - 20, OY + i * CELL + CELL / 2 - 8, buf, 1);
-        TextOutA(hdc, OX + i * CELL + CELL / 2 - 5, OY - 25, buf, 1);
-    }
-
-    SelectObject(hdc, oldFont);
-    DeleteObject(labelFont);
-
-    HFONT pieceFont = CreateFont(
-        52, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH, "Courier New"
-    );
-    oldFont = SelectObject(hdc, pieceFont);
-    SetBkMode(hdc, TRANSPARENT);
-
-    for (int r = 0; r < 8; r++) {
-        for (int c = 0; c < 8; c++) {
-            char sym = gBoard->getSymbolAt(r, c);
-            if (sym == 0) continue;
-
-            bool isWhitePiece = (sym >= 'A' && sym <= 'Z');
-
-            int x = OX + c * CELL;
-            int y = OY + r * CELL;
-
-            COLORREF shadow = isWhitePiece ? RGB(100, 100, 100) : RGB(180, 180, 180);
-            SetTextColor(hdc, shadow);
-            RECT shadowRect = { x + 3, y + 7, x + CELL + 3, y + CELL + 7 };
-            char str[2] = { sym, 0 };
-            DrawTextA(hdc, str, 1, &shadowRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
-            SetTextColor(hdc, isWhitePiece ? RGB(255, 255, 255) : RGB(20, 20, 20));
-            RECT cellRect = { x, y + 4, x + CELL, y + CELL + 4 };
-            DrawTextA(hdc, str, 1, &cellRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        }
-    }
-
-    SelectObject(hdc, oldFont);
-    DeleteObject(pieceFont);
+void ResetGame() {
+    delete gBoard; gBoard = new Board();
+    whiteTurn = true; pieceSelected = false;
+    selRow = -1; selCol = -1;
+    gameOver = false; isDraw = false; statusMsg = "";
 }
 
-void DrawStatus(HDC hdc) {
-    HFONT font = CreateFont(
-        26, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH, "Segoe UI"
-    );
-    HGDIOBJ oldFont = SelectObject(hdc, font);
-    SetBkMode(hdc, TRANSPARENT);
-
-    std::string msg;
-    COLORREF    msgColor;
-
-    if (gameOver) {
-        msg      = winnerMsg;
-        msgColor = RGB(220, 60, 60);
-    } else if (whiteTurn) {
-        msg      = "WHITE's turn";
-        msgColor = RGB(240, 240, 240);
-    } else {
-        msg      = "BLACK's turn";
-        msgColor = RGB(160, 160, 255);
+const wchar_t* Glyph(char s) {
+    switch(s){
+    case 'K': return L"\u2654";
+    case 'Q': return L"\u2655";
+    case 'R': return L"\u2656";
+    case 'B': return L"\u2657";
+    case 'N': return L"\u2658";
+    case 'P': return L"\u2659";
+    case 'k': return L"\u265A";
+    case 'q': return L"\u265B";
+    case 'r': return L"\u265C";
+    case 'b': return L"\u265D";
+    case 'n': return L"\u265E";
+    case 'p': return L"\u265F";
+    default:  return L"";
     }
-
-    RECT statusRect = { OX, OY + CELL * 8 + 12, OX + CELL * 8, OY + CELL * 8 + 70 };
-    SetTextColor(hdc, msgColor);
-    DrawTextA(hdc, msg.c_str(), -1, &statusRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
-    if (!gameOver) {
-        std::string hint = "Click a piece to select, click again to move";
-        HFONT hintFont = CreateFont(
-            14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH, "Segoe UI"
-        );
-        SelectObject(hdc, hintFont);
-        SetTextColor(hdc, RGB(120, 120, 120));
-        RECT hintRect = { OX, OY + CELL * 8 + 55, OX + CELL * 8, OY + CELL * 8 + 82 };
-        DrawTextA(hdc, hint.c_str(), -1, &hintRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        DeleteObject(hintFont);
-    }
-
-    SelectObject(hdc, oldFont);
-    DeleteObject(font);
 }
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg) {
+void Paint(HDC hdc, int W, int H) {
+    HBRUSH bg = CreateSolidBrush(RGB(28,28,32));
+    RECT all = {0,0,W,H};
+    FillRect(hdc, &all, bg); DeleteObject(bg);
 
-    case WM_PAINT: {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
+    SetBkMode(hdc, TRANSPARENT);
 
-        RECT clientRect;
-        GetClientRect(hwnd, &clientRect);
+    HBRUSH border = CreateSolidBrush(RGB(8,8,8));
+    RECT bord = {gOX-4, gOY-4, gOX+gCELL*8+4, gOY+gCELL*8+4};
+    FillRect(hdc, &bord, border); DeleteObject(border);
 
-        HDC     memDC  = CreateCompatibleDC(hdc);
-        HBITMAP memBmp = CreateCompatibleBitmap(hdc, clientRect.right, clientRect.bottom);
-        HGDIOBJ oldBmp = SelectObject(memDC, memBmp);
+    for(int r=0;r<8;r++) for(int c=0;c<8;c++) {
+        int x=gOX+c*gCELL, y=gOY+r*gCELL;
+        COLORREF col;
+        if(pieceSelected && r==selRow && c==selCol) col=RGB(80,200,80);
+        else col=((r+c)%2==0)?RGB(240,217,181):RGB(181,136,99);
+        HBRUSH b=CreateSolidBrush(col);
+        RECT sq={x,y,x+gCELL,y+gCELL};
+        FillRect(hdc,&sq,b); DeleteObject(b);
+    }
 
-        HBRUSH bgBrush = CreateSolidBrush(RGB(35, 35, 38));
-        FillRect(memDC, &clientRect, bgBrush);
-        DeleteObject(bgBrush);
+    int lsz = max(12, gCELL/7);
+    HFONT lf = CreateFontA(lsz,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,"Segoe UI");
+    HGDIOBJ pv = SelectObject(hdc, lf);
+    for(int i=0;i<8;i++){
+        char buf[4]; wsprintfA(buf,"%d",i);
+        SetTextColor(hdc,RGB(130,130,130));
+        TextOutA(hdc, gOX-lsz-6, gOY+i*gCELL+gCELL/2-lsz/2, buf, 1);
+        TextOutA(hdc, gOX+i*gCELL+gCELL/2-lsz/3, gOY-lsz-8, buf, 1);
+    }
+    SelectObject(hdc,pv); DeleteObject(lf);
 
-        DrawBoard(memDC);
-        DrawStatus(memDC);
+    int psz=(int)(gCELL*0.78);
+    HFONT pf=CreateFontW(psz,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI Symbol");
+    pv=SelectObject(hdc,pf);
+    for(int r=0;r<8;r++) for(int c=0;c<8;c++){
+        char sym=gBoard->getSymbolAt(r,c); if(!sym) continue;
+        bool iw=(sym>='A'&&sym<='Z');
+        const wchar_t* g=Glyph(sym);
+        int x=gOX+c*gCELL, y=gOY+r*gCELL, sh=max(2,gCELL/36);
+        RECT sr2={x+sh,y+sh,x+gCELL+sh,y+gCELL+sh};
+        RECT cr2={x,y,x+gCELL,y+gCELL};
+        SetTextColor(hdc,iw?RGB(40,40,40):RGB(150,150,150));
+        DrawTextW(hdc,g,-1,&sr2,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+        SetTextColor(hdc,iw?RGB(255,252,215):RGB(5,5,5));
+        DrawTextW(hdc,g,-1,&cr2,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+    }
+    SelectObject(hdc,pv); DeleteObject(pf);
 
-        BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, memDC, 0, 0, SRCCOPY);
+    int tsz=max(18,gCELL/4);
+    HFONT tf=CreateFontA(tsz,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,"Segoe UI");
+    pv=SelectObject(hdc,tf);
+    const char* tmsg; COLORREF tcol;
+    if(gameOver){tmsg=statusMsg.c_str();tcol=RGB(230,70,70);}
+    else if(isDraw){tmsg=statusMsg.c_str();tcol=RGB(220,200,50);}
+    else if(whiteTurn){tmsg="WHITE's turn";tcol=RGB(245,245,245);}
+    else{tmsg="BLACK's turn";tcol=RGB(150,150,255);}
+    int bot=gOY+gCELL*8;
+    RECT tr={gOX, bot+10, gOX+gCELL*8, bot+10+tsz+6};
+    SetTextColor(hdc,tcol);
+    DrawTextA(hdc,tmsg,-1,&tr,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+    SelectObject(hdc,pv); DeleteObject(tf);
 
-        SelectObject(memDC, oldBmp);
-        DeleteObject(memBmp);
-        DeleteDC(memDC);
+    int hsz=max(11,gCELL/10);
+    HFONT hf=CreateFontA(hsz,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,"Segoe UI");
+    pv=SelectObject(hdc,hf);
+    SetTextColor(hdc,RGB(60,60,60));
+    RECT hr={gOX, bot+10+tsz+8, gOX+gCELL*8, bot+10+tsz+8+hsz+4};
+    DrawTextA(hdc,"Click piece then destination  |  ESC = quit",-1,&hr,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+    SelectObject(hdc,pv); DeleteObject(hf);
 
-        EndPaint(hwnd, &ps);
+    if(!gameOver && !isDraw){
+        int bw=180, bh=56;
+        int bx=(W-bw)/2, by=14;
+        gDrawBtn={bx,by,bx+bw,by+bh};
+
+        HBRUSH bb=CreateSolidBrush(RGB(210,150,0));
+        FillRect(hdc,&gDrawBtn,bb); DeleteObject(bb);
+
+        HPEN pen=CreatePen(PS_SOLID,3,RGB(255,220,0));
+        HGDIOBJ op=SelectObject(hdc,pen);
+        HBRUSH nb=(HBRUSH)GetStockObject(NULL_BRUSH);
+        HGDIOBJ ob=SelectObject(hdc,nb);
+        Rectangle(hdc,bx,by,bx+bw,by+bh);
+        SelectObject(hdc,op); SelectObject(hdc,ob); DeleteObject(pen);
+
+        HFONT bf=CreateFontA(26,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,"Segoe UI");
+        pv=SelectObject(hdc,bf);
+        SetTextColor(hdc,RGB(255,255,255));
+        DrawTextA(hdc,"DRAW",-1,&gDrawBtn,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+        SelectObject(hdc,pv); DeleteObject(bf);
+    }
+}
+
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp){
+    switch(msg){
+    case WM_PAINT:{
+        PAINTSTRUCT ps; HDC hdc=BeginPaint(hwnd,&ps);
+        RECT cr; GetClientRect(hwnd,&cr);
+        HDC mem=CreateCompatibleDC(hdc);
+        HBITMAP bmp=CreateCompatibleBitmap(hdc,cr.right,cr.bottom);
+        HGDIOBJ old=SelectObject(mem,bmp);
+        Paint(mem,cr.right,cr.bottom);
+        BitBlt(hdc,0,0,cr.right,cr.bottom,mem,0,0,SRCCOPY);
+        SelectObject(mem,old); DeleteObject(bmp); DeleteDC(mem);
+        EndPaint(hwnd,&ps); break;
+    }
+    case WM_TIMER:
+        if(wp==TIMER_ID){ KillTimer(hwnd,TIMER_ID); ResetGame(); InvalidateRect(hwnd,NULL,FALSE); }
         break;
-    }
-
-    case WM_LBUTTONDOWN: {
-        if (gameOver) break;
-
-        int mx  = LOWORD(lParam);
-        int my  = HIWORD(lParam);
-        int col = (mx - OX) / CELL;
-        int row = (my - OY) / CELL;
-
-        if (row < 0 || row > 7 || col < 0 || col > 7) {
-            pieceSelected = false;
-            InvalidateRect(hwnd, NULL, FALSE);
-            break;
+    case WM_KEYDOWN:
+        if(wp==VK_ESCAPE) PostQuitMessage(0);
+        break;
+    case WM_LBUTTONDOWN:{
+        int mx=LOWORD(lp), my=HIWORD(lp);
+        if(!gameOver && !isDraw &&
+           mx>=gDrawBtn.left && mx<=gDrawBtn.right &&
+           my>=gDrawBtn.top  && my<=gDrawBtn.bottom){
+            isDraw=true; pieceSelected=false;
+            statusMsg="Draw agreed! Restarting in 3s...";
+            InvalidateRect(hwnd,NULL,FALSE);
+            SetTimer(hwnd,TIMER_ID,3000,NULL); break;
         }
-
-        if (pieceSelected && row == selRow && col == selCol) {
-            pieceSelected = false;
-            InvalidateRect(hwnd, NULL, FALSE);
-            break;
-        }
-
-        if (!pieceSelected) {
-            char sym = gBoard->getSymbolAt(row, col);
-            if (sym == 0) break;
-            bool isWhitePiece = (sym >= 'A' && sym <= 'Z');
-            if (whiteTurn  && !isWhitePiece) break;
-            if (!whiteTurn &&  isWhitePiece) break;
-            pieceSelected = true;
-            selRow = row;
-            selCol = col;
+        if(gameOver||isDraw) break;
+        int col=(mx-gOX)/gCELL, row=(my-gOY)/gCELL;
+        if(row<0||row>7||col<0||col>7){ pieceSelected=false; InvalidateRect(hwnd,NULL,FALSE); break; }
+        if(pieceSelected && row==selRow && col==selCol){ pieceSelected=false; InvalidateRect(hwnd,NULL,FALSE); break; }
+        if(!pieceSelected){
+            char sym=gBoard->getSymbolAt(row,col); if(!sym) break;
+            bool iw=(sym>='A'&&sym<='Z');
+            if(whiteTurn&&!iw) break; if(!whiteTurn&&iw) break;
+            pieceSelected=true; selRow=row; selCol=col;
         } else {
-            bool moved = gBoard->movePiece(selRow, selCol, row, col);
-            pieceSelected = false;
-
-            if (moved) {
-                if (gBoard->kingCaptured) {
-                    gameOver  = true;
-                    winnerMsg = whiteTurn ? "WHITE WINS!" : "BLACK WINS!";
-                } else {
-                    whiteTurn = !whiteTurn;
-                }
+            bool moved=gBoard->movePiece(selRow,selCol,row,col);
+            pieceSelected=false;
+            if(moved){
+                if(gBoard->kingCaptured){
+                    gameOver=true;
+                    statusMsg=whiteTurn?"WHITE WINS! Restarting in 3s...":"BLACK WINS! Restarting in 3s...";
+                    SetTimer(hwnd,TIMER_ID,3000,NULL);
+                } else whiteTurn=!whiteTurn;
             }
         }
-
-        InvalidateRect(hwnd, NULL, FALSE);
-        break;
+        InvalidateRect(hwnd,NULL,FALSE); break;
     }
-
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-
-    default:
-        return DefWindowProc(hwnd, msg, wParam, lParam);
+    case WM_DESTROY: PostQuitMessage(0); break;
+    default: return DefWindowProc(hwnd,msg,wp,lp);
     }
-
     return 0;
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
-    gBoard = new Board();
+int WINAPI WinMain(HINSTANCE hi, HINSTANCE, LPSTR, int){
+    gBoard=new Board();
+    gSW=GetSystemMetrics(SM_CXSCREEN);
+    gSH=GetSystemMetrics(SM_CYSCREEN);
 
-    WNDCLASSEX wc     = {};
-    wc.cbSize         = sizeof(WNDCLASSEX);
-    wc.lpfnWndProc    = WndProc;
-    wc.hInstance      = hInstance;
-    wc.lpszClassName  = "ChessApp";
-    wc.hbrBackground  = (HBRUSH)GetStockObject(BLACK_BRUSH);
-    wc.hCursor        = LoadCursor(NULL, IDC_ARROW);
-    wc.hIcon          = LoadIcon(NULL, IDI_APPLICATION);
-    wc.hIconSm        = LoadIcon(NULL, IDI_APPLICATION);
-    RegisterClassEx(&wc);
+    int bp=(int)(min(gSW,gSH)*0.80);
+    gCELL=bp/8; bp=gCELL*8;
+    gOX=(gSW-bp)/2;
+    gOY=(gSH-bp)/2;
 
-    RECT wr = { 0, 0, WIN_W, WIN_H };
-    DWORD style = (WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX);
-    AdjustWindowRect(&wr, style, FALSE);
+    WNDCLASSEXA wc={};
+    wc.cbSize=sizeof(wc); wc.lpfnWndProc=WndProc;
+    wc.hInstance=hi; wc.lpszClassName="Chess";
+    wc.hbrBackground=(HBRUSH)GetStockObject(BLACK_BRUSH);
+    wc.hCursor=LoadCursor(NULL,IDC_ARROW);
+    RegisterClassExA(&wc);
 
-    HWND hwnd = CreateWindowEx(
-        0, "ChessApp", "Chess Game",
-        style,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        wr.right - wr.left, wr.bottom - wr.top,
-        NULL, NULL, hInstance, NULL
-    );
+    HWND hwnd=CreateWindowExA(
+        WS_EX_TOPMOST,"Chess","Chess",
+        WS_POPUP,
+        0,0,gSW,gSH,
+        NULL,NULL,hi,NULL);
 
-    ShowWindow(hwnd, nCmdShow);
+    ShowWindow(hwnd,SW_SHOW);
     UpdateWindow(hwnd);
 
-    MSG message;
-    while (GetMessage(&message, NULL, 0, 0)) {
-        TranslateMessage(&message);
-        DispatchMessage(&message);
+    MSG m;
+    while(GetMessage(&m,NULL,0,0)){
+        TranslateMessage(&m); DispatchMessage(&m);
     }
-
     delete gBoard;
-    return (int)message.wParam;
+    return (int)m.wParam;
 }
